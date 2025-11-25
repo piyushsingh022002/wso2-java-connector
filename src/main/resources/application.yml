@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+wso2:
+  base-url: "https://adaptational-wendolyn-concerningly.ngrok-free.dev"
+  scim-users-endpoint: /scim2/Users
+  username: "admin"
+  password: "admin"
+  page-size: 50
+
+cymmetri:
+  base-url: ${CYMMETRI_BASE_URL}
+  username: ${CYMMETRI_USERNAME}
+  password: ${CYMMETRI_PASSWORD}
+
+spring:
+  webclient:
+    max-idle-time-millis: 30000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,mappings
+  endpoint:
+    mappings:
+      enabled: true
