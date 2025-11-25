@@ -1,0 +1,23 @@
+version: '3.9'
+
+services:
+  connector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: connector-service
+    restart: unless-stopped
+    environment:
+      # Map your application.yml variables
+      CYMMETRI_BASE_URL: "https://your-cymmetri.example.com"
+      CYMMETRI_USERNAME: "${CYMMETRI_USERNAME}"
+      CYMMETRI_PASSWORD: "${CYMMETRI_PASSWORD}"
+
+    ports:
+      - "8080:8080"
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "-", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

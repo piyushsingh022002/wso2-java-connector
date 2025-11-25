@@ -1,0 +1,37 @@
+{
+  "groups": [
+    {
+      "name": "wso2",
+      "type": "com.example.connector.config.Wso2Config",
+      "sourceType": "com.example.connector.config.Wso2Config"
+    }
+  ],
+  "properties": [
+    {
+      "name": "wso2.base-url",
+      "type": "java.lang.String",
+      "sourceType": "com.example.connector.config.Wso2Config"
+    },
+    {
+      "name": "wso2.page-size",
+      "type": "java.lang.String",
+      "sourceType": "com.example.connector.config.Wso2Config"
+    },
+    {
+      "name": "wso2.password",
+      "type": "java.lang.String",
+      "sourceType": "com.example.connector.config.Wso2Config"
+    },
+    {
+      "name": "wso2.scim-users-endpoint",
+      "type": "java.lang.String",
+      "sourceType": "com.example.connector.config.Wso2Config"
+    },
+    {
+      "name": "wso2.username",
+      "type": "java.lang.String",
+      "sourceType": "com.example.connector.config.Wso2Config"
+    }
+  ],
+  "hints": []
+}
