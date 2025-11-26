@@ -8,6 +8,8 @@ D:\java-connector.example\src\main\java\com\example\connector\dto\CanonicalGroup
 D:\java-connector.example\src\main\java\com\example\connector\dto\CanonicalUser.java
 D:\java-connector.example\src\main\java\com\example\connector\dto\cymmetri\CymmetriScimUser.java
 D:\java-connector.example\src\main\java\com\example\connector\dto\cymmetri\CymmetriUser.java
+D:\java-connector.example\src\main\java\com\example\connector\dto\scim\EmailListDeserializer.java
+D:\java-connector.example\src\main\java\com\example\connector\dto\scim\ScimUser.java
 D:\java-connector.example\src\main\java\com\example\connector\dto\scim\ScimUserResponse.java
 D:\java-connector.example\src\main\java\com\example\connector\dto\scim\Wso2ScimUser.java
 D:\java-connector.example\src\main\java\com\example\connector\dto\scim\Wso2UserListResponse.java
