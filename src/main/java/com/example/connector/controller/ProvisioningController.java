@@ -1,4 +1,5 @@
 package com.example.connector.controller;
+import reactor.core.publisher.Flux;
 
 import com.example.connector.dto.CanonicalUser;
 import com.example.connector.dto.scim.ScimUserResponse;
@@ -70,8 +71,19 @@ public class ProvisioningController {
     // PUSH users TO WSO2
     // ------------------------------------------
     @PostMapping("/users/push")
-    public List<ScimUserResponse> pushUsersToWso2(@RequestBody List<CanonicalUser> users) {
-        log.info("Pushing {} canonical users to WSO2...", users.size());
-        return provisioningService.pushUsersToWso2(users);
-    }
+    public Flux<ScimUserResponse> pushUsersToWso2(@RequestBody List<CanonicalUser> users) {
+       log.info("Pushing {} canonical users to WSO2...", users.size());
+       return provisioningService.pushUsersToWso2(users);
+     }
+
+     // ------------------------------------------
+// PUSH single user TO WSO2 (Basic Auth)
+// ------------------------------------------
+@PostMapping("/users/push/single")
+public Mono<ScimUserResponse> pushSingleUser(@RequestBody CanonicalUser canonicalUser) {
+    return provisioningService.pushCanonicalAsScimToWso2(canonicalUser);
+}
+
+
+
 }

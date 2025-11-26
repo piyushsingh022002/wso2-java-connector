@@ -9,16 +9,21 @@ import com.example.connector.dto.scim.Wso2UserListResponse;
 import com.example.connector.mapper.UserMapper;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+import reactor.core.publisher.Flux;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.List;
+import java.util.Collections;
+
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -142,51 +147,78 @@ public class ProvisioningService {
     //                WSO2 USER PULL (GET /scim2/Users)
     // =========================================================
     public Mono<List<Wso2ScimUser>> pullUsersFromWso2() {
+    String endpoint = wso2Config.getScimUsersEndpoint();
+    log.info("Pulling users from WSO2 GET {}", endpoint);
 
-        String endpoint = wso2Config.getScimUsersEndpoint();
-        log.info("Pulling users from WSO2 GET {}", endpoint);
+    return wso2Client.get()
+        .uri(endpoint)
+        .retrieve()
+        .bodyToMono(Wso2UserListResponse.class)
+        .doOnNext(resp -> log.info("WSO2 raw response mapped: {}", resp))
+        .map(resp -> {
+            List<Wso2ScimUser> users = resp.getResources();
+            if (users != null) {
+                users.forEach(user -> log.info("User fetched: {}", user));
+                return users;
+            } else {
+                return Collections.<Wso2ScimUser>emptyList();
+            }
+        })
+        .doOnError(ex -> log.error("WSO2 PULL failed", ex))
+        .onErrorResume(ex -> Mono.just(Collections.<Wso2ScimUser>emptyList()));
+}
 
-        try {
-            return wso2Client
-            .get()
-            .uri(endpoint)
-            .retrieve()
-            .bodyToMono(Wso2UserListResponse.class)
-            .map(Wso2UserListResponse::getResources);
-        } catch (WebClientResponseException ex) {
-            log.error("WSO2 PULL failed status={} message={}",
-                    ex.getStatusCode(), ex.getResponseBodyAsString());
-            throw ex;
-        }
-    }
+
+
 
     // =========================================================
     //                WSO2 USER PUSH (POST /Users)
     // =========================================================
-    public List<ScimUserResponse> pushUsersToWso2(List<CanonicalUser> users) {
+   public Flux<ScimUserResponse> pushUsersToWso2(List<CanonicalUser> users) {
+    log.info("Pushing {} users to WSO2 SCIM2...", users.size());
 
-        log.info("Pushing {} users to WSO2 SCIM2...", users.size());
+    return Flux.fromIterable(users)
+            .flatMap(canonical -> {
+                Wso2ScimUser wsoUser = userMapper.toWso2(canonical);
 
-        return users.stream().map(canonical -> {
-
-            Wso2ScimUser wsoUser = userMapper.toWso2(canonical);
-
-            try {
                 return wso2Client.post()
                         .uri("/scim2/Users")
                         .bodyValue(wsoUser)
                         .retrieve()
                         .bodyToMono(ScimUserResponse.class)
-                        .block();
+                        .doOnError(WebClientResponseException.class, ex ->
+                                log.error("WSO2 PUSH failed externalId={} status={} body={}",
+                                        wsoUser.getExternalId(), ex.getStatusCode(), ex.getResponseBodyAsString())
+                        )
+                        .onErrorResume(ex -> Mono.empty()); // skip failed user but continue others
+            });
+}
 
-            } catch (WebClientResponseException ex) {
-                log.error("WSO2 PUSH failed externalId={} status={} body={}",
-                        wsoUser.getExternalId(), ex.getStatusCode(), ex.getResponseBodyAsString());
-                throw ex;
-            }
 
-        }).toList();
-    }
+    // =========================================================
+    //         WSO2 PUSH SINGLE SCIM USER (POST /scim2/Users)
+    // =========================================================
+    public Mono<ScimUserResponse> pushScimUserToWso2(com.example.connector.dto.scim.ScimUser scimUser) {
+    log.info("Pushing single SCIM user to WSO2 userName={}", scimUser.getUserName());
+
+    return wso2Client.post()
+            .uri("/scim2/Users")
+            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+            .bodyValue(scimUser)
+            .retrieve()
+            .bodyToMono(ScimUserResponse.class)
+            .doOnNext(resp -> log.info("WSO2 SCIM push response for {}: {}", scimUser.getUserName(), resp))
+            .doOnError(ex -> log.error("WSO2 SCIM CREATE failed userName={}", scimUser.getUserName(), ex))
+            .onErrorResume(ex -> Mono.empty()); // You can customize error handling
+   }
+
+
+    public Mono<ScimUserResponse> pushCanonicalAsScimToWso2(CanonicalUser canonical) {
+    com.example.connector.dto.scim.ScimUser scimUser = userMapper.toScim(canonical);
+    return pushScimUserToWso2(scimUser);
+   }
+
+
 
     // =========================================================
     //         WSO2 UPDATE USER (PUT /scim2/Users/{id})

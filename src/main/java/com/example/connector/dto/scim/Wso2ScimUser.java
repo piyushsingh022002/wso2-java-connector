@@ -1,12 +1,15 @@
 package com.example.connector.dto.scim;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Wso2ScimUser:
  * Strict SCIM 2.0 model received from WSO2.
+ * Supports both pull (with string/email deserialization) and push.
  */
 @Data
 public class Wso2ScimUser {
@@ -17,7 +20,10 @@ public class Wso2ScimUser {
     private Boolean active;
 
     private Name name;
+
+    @JsonDeserialize(using = EmailListDeserializer.class)
     private List<Email> emails;
+
     private List<Group> groups;
     private Meta meta;
 
@@ -32,6 +38,12 @@ public class Wso2ScimUser {
         private String value;
         private String type;
         private Boolean primary;
+
+        public Email() {} // Default constructor for Jackson
+
+        public Email(String value) {
+            this.value = value;
+        }
     }
 
     @Data

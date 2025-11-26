@@ -27,8 +27,18 @@ public class CanonicalUser {
     private String nickName;
     private String profileUrl;
     private String userType;
+    private String password;
 
     private Boolean active;
 
     private List<CanonicalGroup> groups;
+
+    // getters and setters
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
 }

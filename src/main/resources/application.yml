@@ -9,9 +9,9 @@ wso2:
   page-size: 50
 
 cymmetri:
-  base-url: ${CYMMETRI_BASE_URL}
-  username: ${CYMMETRI_USERNAME}
-  password: ${CYMMETRI_PASSWORD}
+  base-url: ""
+  username: "admin"
+  password: "admin"
 
 spring:
   webclient:
