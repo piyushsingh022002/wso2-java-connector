@@ -19,16 +19,26 @@ public class EmailListDeserializer extends JsonDeserializer<List<Wso2ScimUser.Em
         List<Wso2ScimUser.Email> emails = new ArrayList<>();
         JsonNode node = p.getCodec().readTree(p);
 
+        // Case 1: emails is an array of objects (with value, type, primary)
         if (node.isArray()) {
             for (JsonNode item : node) {
-                Wso2ScimUser.Email email = new Wso2ScimUser.Email();
-                if (item.has("value")) email.setValue(item.get("value").asText());
-                if (item.has("type")) email.setType(item.get("type").asText());
-                if (item.has("primary")) email.setPrimary(item.get("primary").asBoolean());
-                emails.add(email);
+                if (item.isObject()) {
+                    Wso2ScimUser.Email email = new Wso2ScimUser.Email();
+                    if (item.has("value"))
+                        email.setValue(item.get("value").asText());
+                    if (item.has("type"))
+                        email.setType(item.get("type").asText());
+                    if (item.has("primary"))
+                        email.setPrimary(item.get("primary").asBoolean());
+                    emails.add(email);
+                } else if (item.isTextual()) {
+                    // Case 2: emails is a simple array of strings
+                    emails.add(new Wso2ScimUser.Email(item.asText())); // Simple email string
+                }
             }
         } else if (node.isTextual()) {
-            emails.add(new Wso2ScimUser.Email(node.asText()));
+            // Case 3: Single email string
+            emails.add(new Wso2ScimUser.Email(node.asText())); // Single email string
         }
 
         return emails;

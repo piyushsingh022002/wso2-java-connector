@@ -1,4 +1,5 @@
 package com.example.connector.controller;
+
 import reactor.core.publisher.Flux;
 
 import com.example.connector.dto.CanonicalUser;
@@ -11,7 +12,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -54,17 +57,21 @@ public class ProvisioningController {
         return provisioningService.upsertUsersParallel(
                 canonicalUsers.stream()
                         .map(mapper::toCymmetri)
-                        .toList()
-        );
+                        .toList());
     }
 
     // ------------------------------------------
     // PULL users FROM WSO2
     // ------------------------------------------
     @GetMapping("/users/pull")
-    public Mono<List<Wso2ScimUser>> pullUsersFromWso2() {
+    public Mono<Map<String, Object>> pullUsersFromWso2() {
         log.info("Pulling users from WSO2...");
-        return provisioningService.pullUsersFromWso2();
+        return provisioningService.pullUsersFromWso2()
+                .map(users -> {
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("data", users); // Add users under the "data" key
+                    return response;
+                });
     }
 
     // ------------------------------------------
@@ -72,18 +79,16 @@ public class ProvisioningController {
     // ------------------------------------------
     @PostMapping("/users/push")
     public Flux<ScimUserResponse> pushUsersToWso2(@RequestBody List<CanonicalUser> users) {
-       log.info("Pushing {} canonical users to WSO2...", users.size());
-       return provisioningService.pushUsersToWso2(users);
-     }
+        log.info("Pushing {} canonical users to WSO2...", users.size());
+        return provisioningService.pushUsersToWso2(users);
+    }
 
-     // ------------------------------------------
-// PUSH single user TO WSO2 (Basic Auth)
-// ------------------------------------------
-@PostMapping("/users/push/single")
-public Mono<ScimUserResponse> pushSingleUser(@RequestBody CanonicalUser canonicalUser) {
-    return provisioningService.pushCanonicalAsScimToWso2(canonicalUser);
-}
-
-
+    // ------------------------------------------
+    // PUSH single user TO WSO2 (Basic Auth)
+    // ------------------------------------------
+    @PostMapping("/users/push/single")
+    public Mono<ScimUserResponse> pushSingleUser(@RequestBody CanonicalUser canonicalUser) {
+        return provisioningService.pushCanonicalAsScimToWso2(canonicalUser);
+    }
 
 }

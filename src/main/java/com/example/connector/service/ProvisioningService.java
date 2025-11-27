@@ -22,8 +22,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
 import java.util.Collections;
-
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -32,7 +34,7 @@ import java.util.concurrent.CompletableFuture;
 public class ProvisioningService {
 
     // ---------------------------------------------------------
-    //           INJECTED CLIENTS + CONFIG
+    // INJECTED CLIENTS + CONFIG
     // ---------------------------------------------------------
     private final WebClient cymmetriClient;
     private final WebClient wso2Client;
@@ -40,7 +42,7 @@ public class ProvisioningService {
     private final UserMapper userMapper;
 
     // =========================================================
-    //                   UPSERT ENTRYPOINT
+    // UPSERT ENTRYPOINT
     // =========================================================
     public ScimUserResponse upsertUser(CymmetriUser user) {
 
@@ -48,8 +50,7 @@ public class ProvisioningService {
         if (!Boolean.TRUE.equals(user.getActive())) {
             throw new IllegalStateException(
                     "Rejected: externalId=" + user.getExternalId() +
-                    " is inactive. Active=true is strictly required."
-            );
+                            " is inactive. Active=true is strictly required.");
         }
 
         boolean exists = cymmetriUserExists(user.getExternalId());
@@ -58,7 +59,7 @@ public class ProvisioningService {
     }
 
     // =========================================================
-    //           PARALLEL UPSERT FOR BULK PROCESSING
+    // PARALLEL UPSERT FOR BULK PROCESSING
     // =========================================================
     public List<ScimUserResponse> upsertUsersParallel(List<CymmetriUser> users) {
 
@@ -76,7 +77,7 @@ public class ProvisioningService {
     }
 
     // =========================================================
-    //                   CREATE USER â†’ CYMMETRI
+    // CREATE USER â†’ CYMMETRI
     // =========================================================
     private ScimUserResponse createCymmetriUser(CymmetriUser user) {
 
@@ -98,7 +99,7 @@ public class ProvisioningService {
     }
 
     // =========================================================
-    //                   UPDATE USER â†’ CYMMETRI
+    // UPDATE USER â†’ CYMMETRI
     // =========================================================
     private ScimUserResponse updateCymmetriUser(CymmetriUser user) {
 
@@ -121,7 +122,7 @@ public class ProvisioningService {
     }
 
     // =========================================================
-    //             CHECK IF USER EXISTS IN CYMMETRI
+    // CHECK IF USER EXISTS IN CYMMETRI
     // =========================================================
     private boolean cymmetriUserExists(String externalId) {
 
@@ -144,84 +145,118 @@ public class ProvisioningService {
     }
 
     // =========================================================
-    //                WSO2 USER PULL (GET /scim2/Users)
+    // WSO2 USER PULL (GET /scim2/Users)
     // =========================================================
-    public Mono<List<Wso2ScimUser>> pullUsersFromWso2() {
-    String endpoint = wso2Config.getScimUsersEndpoint();
-    log.info("Pulling users from WSO2 GET {}", endpoint);
+    // =========================================================
+    // WSO2 USER PULL (GET /scim2/Users)
+    // =========================================================
+    public Mono<List<Map<String, Object>>> pullUsersFromWso2() {
+        String endpoint = wso2Config.getScimUsersEndpoint();
+        log.info("Pulling users from WSO2 GET {}", endpoint);
 
-    return wso2Client.get()
-        .uri(endpoint)
-        .retrieve()
-        .bodyToMono(Wso2UserListResponse.class)
-        .doOnNext(resp -> log.info("WSO2 raw response mapped: {}", resp))
-        .map(resp -> {
-            List<Wso2ScimUser> users = resp.getResources();
-            if (users != null) {
-                users.forEach(user -> log.info("User fetched: {}", user));
-                return users;
-            } else {
-                return Collections.<Wso2ScimUser>emptyList();
-            }
-        })
-        .doOnError(ex -> log.error("WSO2 PULL failed", ex))
-        .onErrorResume(ex -> Mono.just(Collections.<Wso2ScimUser>emptyList()));
-}
+        return wso2Client.get()
+                .uri(endpoint)
+                .retrieve()
+                .bodyToMono(Wso2UserListResponse.class)
+                .doOnNext(resp -> log.info("WSO2 raw response mapped: {}", resp))
+                .map(resp -> {
+                    List<Wso2ScimUser> users = resp.getResources();
+                    if (users != null) {
+                        List<Map<String, Object>> cymmetriFormattedUsers = new ArrayList<>();
+                        users.forEach(user -> {
+                            Map<String, Object> cymmetriUser = new HashMap<>();
 
+                            // Map user data to Cymmetri format
+                            cymmetriUser.put("uid", user.getId()); // "id" from WSO2 → "uid"
+                            Map<String, Object> attributes = new HashMap<>();
 
+                            // Username and other attributes
+                            attributes.put("username", user.getUserName()); // "userName" from WSO2 → "username"
+                            attributes.put("firstName",
+                                    user.getName().getGivenName() != null ? user.getName().getGivenName() : ""); // "givenName"
+                                                                                                                 // →
+                                                                                                                 // "firstName"
+                            attributes.put("lastName",
+                                    user.getName().getFamilyName() != null ? user.getName().getFamilyName() : ""); // "familyName"
+                                                                                                                   // →
+                                                                                                                   // "lastName"
 
+                            // Handle emails: Extract email value from Email object in the emails list
+                            List<String> emailList = new ArrayList<>();
+                            if (user.getEmails() != null && !user.getEmails().isEmpty()) {
+                                for (Wso2ScimUser.Email emailObj : user.getEmails()) {
+                                    if (emailObj.getValue() != null) {
+                                        emailList.add(emailObj.getValue()); // Add each email value to the list
+                                    }
+                                }
+                            } else {
+                                log.warn("No emails found for user: {}", user.getUserName());
+                            }
+                            attributes.put("emails", emailList);
+
+                            // Active flag
+                            attributes.put("active", user.getActive() != null ? user.getActive() : false); // Active
+                                                                                                           // flag
+
+                            cymmetriUser.put("attributes", attributes);
+                            cymmetriFormattedUsers.add(cymmetriUser);
+                        });
+
+                        return cymmetriFormattedUsers;
+                    } else {
+                        return Collections.<Map<String, Object>>emptyList();
+                    }
+                })
+                .doOnError(ex -> log.error("WSO2 PULL failed", ex))
+                .onErrorResume(ex -> Mono.just(Collections.<Map<String, Object>>emptyList()));
+    }
 
     // =========================================================
-    //                WSO2 USER PUSH (POST /Users)
+    // WSO2 USER PUSH (POST /Users)
     // =========================================================
-   public Flux<ScimUserResponse> pushUsersToWso2(List<CanonicalUser> users) {
-    log.info("Pushing {} users to WSO2 SCIM2...", users.size());
+    public Flux<ScimUserResponse> pushUsersToWso2(List<CanonicalUser> users) {
+        log.info("Pushing {} users to WSO2 SCIM2...", users.size());
 
-    return Flux.fromIterable(users)
-            .flatMap(canonical -> {
-                Wso2ScimUser wsoUser = userMapper.toWso2(canonical);
+        return Flux.fromIterable(users)
+                .flatMap(canonical -> {
+                    Wso2ScimUser wsoUser = userMapper.toWso2(canonical);
 
-                return wso2Client.post()
-                        .uri("/scim2/Users")
-                        .bodyValue(wsoUser)
-                        .retrieve()
-                        .bodyToMono(ScimUserResponse.class)
-                        .doOnError(WebClientResponseException.class, ex ->
-                                log.error("WSO2 PUSH failed externalId={} status={} body={}",
-                                        wsoUser.getExternalId(), ex.getStatusCode(), ex.getResponseBodyAsString())
-                        )
-                        .onErrorResume(ex -> Mono.empty()); // skip failed user but continue others
-            });
-}
-
+                    return wso2Client.post()
+                            .uri("/scim2/Users")
+                            .bodyValue(wsoUser)
+                            .retrieve()
+                            .bodyToMono(ScimUserResponse.class)
+                            .doOnError(WebClientResponseException.class,
+                                    ex -> log.error("WSO2 PUSH failed externalId={} status={} body={}",
+                                            wsoUser.getExternalId(), ex.getStatusCode(), ex.getResponseBodyAsString()))
+                            .onErrorResume(ex -> Mono.empty()); // skip failed user but continue others
+                });
+    }
 
     // =========================================================
-    //         WSO2 PUSH SINGLE SCIM USER (POST /scim2/Users)
+    // WSO2 PUSH SINGLE SCIM USER (POST /scim2/Users)
     // =========================================================
     public Mono<ScimUserResponse> pushScimUserToWso2(com.example.connector.dto.scim.ScimUser scimUser) {
-    log.info("Pushing single SCIM user to WSO2 userName={}", scimUser.getUserName());
+        log.info("Pushing single SCIM user to WSO2 userName={}", scimUser.getUserName());
 
-    return wso2Client.post()
-            .uri("/scim2/Users")
-            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-            .bodyValue(scimUser)
-            .retrieve()
-            .bodyToMono(ScimUserResponse.class)
-            .doOnNext(resp -> log.info("WSO2 SCIM push response for {}: {}", scimUser.getUserName(), resp))
-            .doOnError(ex -> log.error("WSO2 SCIM CREATE failed userName={}", scimUser.getUserName(), ex))
-            .onErrorResume(ex -> Mono.empty()); // You can customize error handling
-   }
-
+        return wso2Client.post()
+                .uri("/scim2/Users")
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .bodyValue(scimUser)
+                .retrieve()
+                .bodyToMono(ScimUserResponse.class)
+                .doOnNext(resp -> log.info("WSO2 SCIM push response for {}: {}", scimUser.getUserName(), resp))
+                .doOnError(ex -> log.error("WSO2 SCIM CREATE failed userName={}", scimUser.getUserName(), ex))
+                .onErrorResume(ex -> Mono.empty()); // You can customize error handling
+    }
 
     public Mono<ScimUserResponse> pushCanonicalAsScimToWso2(CanonicalUser canonical) {
-    com.example.connector.dto.scim.ScimUser scimUser = userMapper.toScim(canonical);
-    return pushScimUserToWso2(scimUser);
-   }
-
-
+        com.example.connector.dto.scim.ScimUser scimUser = userMapper.toScim(canonical);
+        return pushScimUserToWso2(scimUser);
+    }
 
     // =========================================================
-    //         WSO2 UPDATE USER (PUT /scim2/Users/{id})
+    // WSO2 UPDATE USER (PUT /scim2/Users/{id})
     // =========================================================
     public ScimUserResponse updateUserInWso2(String userId, Wso2ScimUser user) {
 
@@ -242,5 +277,3 @@ public class ProvisioningService {
         }
     }
 }
-
-
