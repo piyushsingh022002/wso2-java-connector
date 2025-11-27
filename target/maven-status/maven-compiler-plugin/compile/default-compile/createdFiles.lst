@@ -13,6 +13,7 @@ com\example\connector\dto\scim\ScimUser$Name.class
 com\example\connector\mapper\UserMapper.class
 com\example\connector\config\GlobalExceptionHandler.class
 com\example\connector\dto\CanonicalGroup.class
+com\example\connector\controller\ConnectorHealthController.class
 com\example\connector\dto\scim\Wso2ScimUser$Name.class
 com\example\connector\dto\scim\Wso2ScimUser.class
 com\example\connector\ConnectorApplication.class

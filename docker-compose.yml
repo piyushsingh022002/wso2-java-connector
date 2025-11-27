@@ -10,8 +10,8 @@ services:
     environment:
       # Map your application.yml variables
       CYMMETRI_BASE_URL: "https://your-cymmetri.example.com"
-      CYMMETRI_USERNAME: "${CYMMETRI_USERNAME}"
-      CYMMETRI_PASSWORD: "${CYMMETRI_PASSWORD}"
+      CYMMETRI_USERNAME: "admin"
+      CYMMETRI_PASSWORD: "admin"
 
     ports:
       - "8080:8080"

@@ -3,6 +3,7 @@ D:\java-connector.example\src\main\java\com\example\connector\config\WebClientCo
 D:\java-connector.example\src\main\java\com\example\connector\config\Wso2ClientConfig.java
 D:\java-connector.example\src\main\java\com\example\connector\config\Wso2Config.java
 D:\java-connector.example\src\main\java\com\example\connector\ConnectorApplication.java
+D:\java-connector.example\src\main\java\com\example\connector\controller\ConnectorHealthController.java
 D:\java-connector.example\src\main\java\com\example\connector\controller\ProvisioningController.java
 D:\java-connector.example\src\main\java\com\example\connector\dto\CanonicalGroup.java
 D:\java-connector.example\src\main\java\com\example\connector\dto\CanonicalUser.java
