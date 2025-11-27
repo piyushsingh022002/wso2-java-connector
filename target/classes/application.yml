@@ -2,16 +2,16 @@ server:
   port: 8080
 
 wso2:
-  base-url: "https://adaptational-wendolyn-concerningly.ngrok-free.dev"
-  scim-users-endpoint: /scim2/Users
-  username: "admin"
-  password: "admin"
-  page-size: 50
+  base-url: ${WSO2_BASE_URL}
+  scim-users-endpoint: "/scim2/Users"
+  username: ${WSO2_USERNAME:}
+  password: ${WSO2_PASSWORD:}
+  page-size: ${WSO2_PAGE_SIZE:50}
 
 cymmetri:
-  base-url: ""
-  username: "admin"
-  password: "admin"
+  base-url: ${CYMMETRI_BASE_URL}
+  username: ${CYMMETRI_USERNAME}
+  password: ${CYMMETRI_PASSWORD}
 
 spring:
   webclient:

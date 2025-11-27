@@ -147,9 +147,6 @@ public class ProvisioningService {
     // =========================================================
     // WSO2 USER PULL (GET /scim2/Users)
     // =========================================================
-    // =========================================================
-    // WSO2 USER PULL (GET /scim2/Users)
-    // =========================================================
     public Mono<List<Map<String, Object>>> pullUsersFromWso2() {
         String endpoint = wso2Config.getScimUsersEndpoint();
         log.info("Pulling users from WSO2 GET {}", endpoint);
@@ -158,7 +155,7 @@ public class ProvisioningService {
                 .uri(endpoint)
                 .retrieve()
                 .bodyToMono(Wso2UserListResponse.class)
-                .doOnNext(resp -> log.info("WSO2 raw response mapped: {}", resp))
+                // .doOnNext(resp -> log.info("WSO2 raw response mapped: {}", resp))
                 .map(resp -> {
                     List<Wso2ScimUser> users = resp.getResources();
                     if (users != null) {
