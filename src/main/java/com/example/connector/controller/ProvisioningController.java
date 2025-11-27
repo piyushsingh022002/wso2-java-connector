@@ -83,9 +83,7 @@ public class ProvisioningController {
         return provisioningService.pushUsersToWso2(users);
     }
 
-    // ------------------------------------------
     // PUSH single user TO WSO2 (Basic Auth)
-    // ------------------------------------------
     @PostMapping("/users/push/single")
     public Mono<ScimUserResponse> pushSingleUser(@RequestBody CanonicalUser canonicalUser) {
         return provisioningService.pushCanonicalAsScimToWso2(canonicalUser);

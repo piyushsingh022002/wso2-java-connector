@@ -3,10 +3,13 @@ package com.example.connector.service;
 import com.example.connector.config.Wso2Config;
 import com.example.connector.dto.CanonicalUser;
 import com.example.connector.dto.cymmetri.CymmetriUser;
+import com.example.connector.dto.scim.ScimUserRequest;
 import com.example.connector.dto.scim.ScimUserResponse;
 import com.example.connector.dto.scim.Wso2ScimUser;
 import com.example.connector.dto.scim.Wso2UserListResponse;
 import com.example.connector.mapper.UserMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.core.publisher.Flux;
@@ -218,25 +221,31 @@ public class ProvisioningService {
                 });
     }
 
-    // =========================================================
     // WSO2 PUSH SINGLE SCIM USER (POST /scim2/Users)
-    // =========================================================
-    public Mono<ScimUserResponse> pushScimUserToWso2(com.example.connector.dto.scim.ScimUser scimUser) {
-        log.info("Pushing single SCIM user to WSO2 userName={}", scimUser.getUserName());
+    public Mono<ScimUserResponse> pushScimUserToWso2(ScimUserRequest scimUser) {
+        log.info("Pushing SCIM user to WSO2 userName={}", scimUser.getUserName());
+        log.info("SCIM PAYLOAD = {}", scimUser);
 
         return wso2Client.post()
                 .uri("/scim2/Users")
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .bodyValue(scimUser)
-                .retrieve()
-                .bodyToMono(ScimUserResponse.class)
-                .doOnNext(resp -> log.info("WSO2 SCIM push response for {}: {}", scimUser.getUserName(), resp))
-                .doOnError(ex -> log.error("WSO2 SCIM CREATE failed userName={}", scimUser.getUserName(), ex))
-                .onErrorResume(ex -> Mono.empty()); // You can customize error handling
+                .exchangeToMono(response -> {
+                    if (response.statusCode().is2xxSuccessful()) {
+                        return response.bodyToMono(ScimUserResponse.class);
+                    } else {
+                        return response.bodyToMono(String.class)
+                                .flatMap(errorBody -> {
+                                    log.error("WSO2 ERROR BODY: {}", errorBody);
+                                    return Mono.error(new RuntimeException(errorBody));
+                                });
+                    }
+                });
+
     }
 
     public Mono<ScimUserResponse> pushCanonicalAsScimToWso2(CanonicalUser canonical) {
-        com.example.connector.dto.scim.ScimUser scimUser = userMapper.toScim(canonical);
+        ScimUserRequest scimUser = userMapper.toScim(canonical);
         return pushScimUserToWso2(scimUser);
     }
 

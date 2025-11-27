@@ -6,8 +6,11 @@ import com.example.connector.dto.*;
 import com.example.connector.dto.cymmetri.CymmetriUser;
 import com.example.connector.dto.scim.Wso2ScimUser;
 import com.example.connector.dto.scim.ScimUser;
+import com.example.connector.dto.scim.ScimUserRequest;
+
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -88,38 +91,36 @@ public class UserMapper {
         return user;
     }
 
-    // ----------------------------------
-    // Canonical → Generic SCIM (ScimUser)
-    // ----------------------------------
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public ScimUser toScim(CanonicalUser c) {
-        ScimUser user = new ScimUser();
+    // Canonical → Generic SCIM (Wso2)
+    public ScimUserRequest toScim(CanonicalUser canonical) {
+        ScimUserRequest req = new ScimUserRequest();
 
-        user.setSchemas(List.of("urn:ietf:params:scim:schemas:core:2.0:User"));
-        user.setUserName(c.getUserName());
-        user.setActive(c.getActive() != null ? c.getActive() : true);
+        req.setSchemas(List.of("urn:ietf:params:scim:schemas:core:2.0:User"));
+        req.setUserName(canonical.getUserName());
+        req.setPassword(canonical.getPassword());
 
-        // Set password
-        user.setPassword(c.getPassword()); // <-- must be included
+        // --- name mapping ---
+        ScimUserRequest.Name name = new ScimUserRequest.Name();
 
-        // Name
-        String displayName = c.getDisplayName() != null ? c.getDisplayName() : c.getUserName();
-        String[] parts = displayName.split(" ", 2);
-        ScimUser.Name name = new ScimUser.Name();
-        name.setGivenName(parts[0]);
-        name.setFamilyName(parts.length > 1 ? parts[1] : "");
-        user.setName(name);
+        // givenName from displayName
+        name.setGivenName(canonical.getDisplayName() != null ? canonical.getDisplayName() : canonical.getUserName());
 
-        // Emails
-        ScimUser.Email email = new ScimUser.Email();
-        email.setValue(c.getUserName() + "@example.com");
+        // familyName = same (since canonical has no last name)
+        name.setFamilyName(canonical.getDisplayName() != null ? canonical.getDisplayName() : canonical.getUserName());
+
+        req.setName(name);
+
+        // --- email mapping ---
+        ScimUserRequest.Email email = new ScimUserRequest.Email();
         email.setPrimary(true);
-        user.setEmails(List.of(email));
 
-        // Set empty groups array
-        user.setGroups(List.of());
+        // canonical user has no email → generate fallback
+        String emailValue = canonical.getUserName() + "@example.com";
+        email.setValue(emailValue);
 
-        return user;
+        req.setEmails(Collections.singletonList(email));
+
+        return req;
     }
 
     // ----------------------------------
