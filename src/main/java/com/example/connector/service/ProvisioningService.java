@@ -165,37 +165,25 @@ public class ProvisioningService {
 
                             // Map user data to Cymmetri format
                             cymmetriUser.put("uid", user.getId()); // "id" from WSO2 → "uid"
-                            Map<String, Object> attributes = new HashMap<>();
-
-                            // Username and other attributes
-                            attributes.put("username", user.getUserName()); // "userName" from WSO2 → "username"
-                            attributes.put("firstName",
-                                    user.getName().getGivenName() != null ? user.getName().getGivenName() : ""); // "givenName"
-                                                                                                                 // →
-                                                                                                                 // "firstName"
-                            attributes.put("lastName",
-                                    user.getName().getFamilyName() != null ? user.getName().getFamilyName() : ""); // "familyName"
-                                                                                                                   // →
-                                                                                                                   // "lastName"
-
-                            // Handle emails: Extract email value from Email object in the emails list
+                            cymmetriUser.put("uid", user.getId()); // "id" from WSO2 → "uid"
+                            cymmetriUser.put("username", user.getUserName());
+                            cymmetriUser.put("firstName",
+                                    user.getName().getGivenName() != null ? user.getName().getGivenName() : "");
+                            cymmetriUser.put("lastName",
+                                    user.getName().getFamilyName() != null ? user.getName().getFamilyName() : "");
+                            // Emails
                             List<String> emailList = new ArrayList<>();
                             if (user.getEmails() != null && !user.getEmails().isEmpty()) {
                                 for (Wso2ScimUser.Email emailObj : user.getEmails()) {
                                     if (emailObj.getValue() != null) {
-                                        emailList.add(emailObj.getValue()); // Add each email value to the list
+                                        emailList.add(emailObj.getValue());
                                     }
                                 }
-                            } else {
-                                log.warn("No emails found for user: {}", user.getUserName());
                             }
-                            attributes.put("emails", emailList);
+                            cymmetriUser.put("emails", emailList); // add the list to top-level
 
-                            // Active flag
-                            attributes.put("active", user.getActive() != null ? user.getActive() : false); // Active
-                                                                                                           // flag
+                            cymmetriUser.put("active", user.getActive() != null ? user.getActive() : false);
 
-                            cymmetriUser.put("attributes", attributes);
                             cymmetriFormattedUsers.add(cymmetriUser);
                         });
 
