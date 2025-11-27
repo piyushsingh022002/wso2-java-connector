@@ -69,7 +69,7 @@ public class ProvisioningController {
         return provisioningService.pullUsersFromWso2()
                 .map(users -> {
                     Map<String, Object> response = new HashMap<>();
-                    response.put("data", users); // Add users under the "data" key
+                    response.put("data", users); // Wrap the list under "data"
                     return response;
                 });
     }

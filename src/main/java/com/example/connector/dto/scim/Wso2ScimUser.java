@@ -27,6 +27,20 @@ public class Wso2ScimUser {
     private List<Group> groups;
     private Meta meta;
 
+    // New fields to match your response
+    private String birthDate; // date_of_birth
+    private String gender; // gender_identity
+    private Boolean terminated; // is_terminated
+    private Boolean onLeave; // is_on_leave
+    private String department;
+    private String location;
+    private String branchGroup; // maps to "group" in your output
+    private String position;
+    private String employmentStatus;
+    private String avatarUrl;
+    private String startedAt;
+    private String finishedAt;
+
     @Data
     public static class Name {
         private String givenName;
@@ -39,7 +53,8 @@ public class Wso2ScimUser {
         private String type;
         private Boolean primary;
 
-        public Email() {} // Default constructor for Jackson
+        public Email() {
+        }
 
         public Email(String value) {
             this.value = value;

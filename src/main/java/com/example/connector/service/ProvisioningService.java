@@ -147,9 +147,7 @@ public class ProvisioningService {
         }
     }
 
-    // =========================================================
     // WSO2 USER PULL (GET /scim2/Users)
-    // =========================================================
     public Mono<List<Map<String, Object>>> pullUsersFromWso2() {
         String endpoint = wso2Config.getScimUsersEndpoint();
         log.info("Pulling users from WSO2 GET {}", endpoint);
@@ -158,39 +156,63 @@ public class ProvisioningService {
                 .uri(endpoint)
                 .retrieve()
                 .bodyToMono(Wso2UserListResponse.class)
-                // .doOnNext(resp -> log.info("WSO2 raw response mapped: {}", resp))
                 .map(resp -> {
                     List<Wso2ScimUser> users = resp.getResources();
                     if (users != null) {
-                        List<Map<String, Object>> cymmetriFormattedUsers = new ArrayList<>();
+                        List<Map<String, Object>> formattedUsers = new ArrayList<>();
+
                         users.forEach(user -> {
-                            Map<String, Object> cymmetriUser = new HashMap<>();
+                            Map<String, Object> u = new HashMap<>();
 
-                            // Map user data to Cymmetri format
-                            cymmetriUser.put("uid", user.getId()); // "id" from WSO2 → "uid"
-                            cymmetriUser.put("uid", user.getId()); // "id" from WSO2 → "uid"
-                            cymmetriUser.put("username", user.getUserName());
-                            cymmetriUser.put("firstName",
-                                    user.getName().getGivenName() != null ? user.getName().getGivenName() : "");
-                            cymmetriUser.put("lastName",
-                                    user.getName().getFamilyName() != null ? user.getName().getFamilyName() : "");
-                            // Emails
-                            List<String> emailList = new ArrayList<>();
-                            if (user.getEmails() != null && !user.getEmails().isEmpty()) {
-                                for (Wso2ScimUser.Email emailObj : user.getEmails()) {
-                                    if (emailObj.getValue() != null) {
-                                        emailList.add(emailObj.getValue());
-                                    }
-                                }
+                            // Map WSO2 fields to desired format
+                            u.put("id", user.getId()); // unique ID
+                            u.put("code", user.getUserName()); // can customize as needed
+                            u.put("first_names", user.getName() != null && user.getName().getGivenName() != null
+                                    ? user.getName().getGivenName()
+                                    : "");
+                            u.put("last_name", user.getName() != null && user.getName().getFamilyName() != null
+                                    ? user.getName().getFamilyName()
+                                    : "");
+                            u.put("full_name", u.get("last_name") + ", " + u.get("first_names"));
+
+                            // DOB and gender
+                            u.put("date_of_birth", user.getBirthDate()); // map accordingly
+                            u.put("gender_identity", user.getGender() != null ? user.getGender() : "");
+
+                            // Status flags
+                            u.put("is_active", user.getActive() != null ? user.getActive() : false);
+                            u.put("is_terminated", user.getTerminated() != null ? user.getTerminated() : false);
+                            u.put("is_on_leave", user.getOnLeave() != null ? user.getOnLeave() : false);
+
+                            // Job info
+                            u.put("pay_point", "");
+                            u.put("department", user.getDepartment() != null ? user.getDepartment() : "");
+                            u.put("location", user.getLocation() != null ? user.getLocation() : "");
+
+                            String branchGroup = "";
+                            if (user.getGroups() != null && !user.getGroups().isEmpty()) {
+                                branchGroup = user.getGroups().get(0).getDisplay(); // or getValue(), depending on what
+                                                                                    // you want
                             }
-                            cymmetriUser.put("emails", emailList); // add the list to top-level
+                            u.put("group", branchGroup);
+                            u.put("position", user.getPosition() != null ? user.getPosition() : "");
+                            u.put("employment_status",
+                                    user.getEmploymentStatus() != null ? user.getEmploymentStatus() : "");
 
-                            cymmetriUser.put("active", user.getActive() != null ? user.getActive() : false);
+                            // Avatar and email
+                            u.put("avatar", user.getAvatarUrl() != null ? user.getAvatarUrl() : "");
+                            u.put("email", (user.getEmails() != null && !user.getEmails().isEmpty())
+                                    ? user.getEmails().get(0).getValue()
+                                    : "");
 
-                            cymmetriFormattedUsers.add(cymmetriUser);
+                            // Start/end dates
+                            u.put("started_at", user.getStartedAt() != null ? user.getStartedAt() : null);
+                            u.put("finished_at", user.getFinishedAt() != null ? user.getFinishedAt() : null);
+
+                            formattedUsers.add(u);
                         });
 
-                        return cymmetriFormattedUsers;
+                        return formattedUsers;
                     } else {
                         return Collections.<Map<String, Object>>emptyList();
                     }
