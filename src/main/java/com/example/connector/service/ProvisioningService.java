@@ -2,6 +2,7 @@ package com.example.connector.service;
 
 import com.example.connector.config.Wso2Config;
 import com.example.connector.dto.CanonicalUser;
+import com.example.connector.dto.IncomingUser;
 import com.example.connector.dto.cymmetri.CymmetriUser;
 import com.example.connector.dto.scim.ScimUserRequest;
 import com.example.connector.dto.scim.ScimUserResponse;
@@ -266,9 +267,9 @@ public class ProvisioningService {
 
     }
 
-    public Mono<ScimUserResponse> pushCanonicalAsScimToWso2(CanonicalUser canonical) {
-        ScimUserRequest scimUser = userMapper.toScim(canonical);
-        return pushScimUserToWso2(scimUser);
+    public Mono<ScimUserResponse> pushIncomingToWso2(IncomingUser incoming) {
+        ScimUserRequest scim = userMapper.toScim(incoming);
+        return pushScimUserToWso2(scim);
     }
 
     // =========================================================

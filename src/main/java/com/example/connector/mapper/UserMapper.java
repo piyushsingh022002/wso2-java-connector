@@ -91,37 +91,39 @@ public class UserMapper {
         return user;
     }
 
-    // Canonical → Generic SCIM (Wso2)
-    public ScimUserRequest toScim(CanonicalUser canonical) {
-        ScimUserRequest req = new ScimUserRequest();
+    // // Canonical → Generic SCIM (Wso2)
+    // public ScimUserRequest toScim(CanonicalUser canonical) {
+    // ScimUserRequest req = new ScimUserRequest();
 
-        req.setSchemas(List.of("urn:ietf:params:scim:schemas:core:2.0:User"));
-        req.setUserName(canonical.getUserName());
-        req.setPassword(canonical.getPassword());
+    // req.setSchemas(List.of("urn:ietf:params:scim:schemas:core:2.0:User"));
+    // req.setUserName(canonical.getUserName());
+    // req.setPassword(canonical.getPassword());
 
-        // --- name mapping ---
-        ScimUserRequest.Name name = new ScimUserRequest.Name();
+    // // --- name mapping ---
+    // ScimUserRequest.Name name = new ScimUserRequest.Name();
 
-        // givenName from displayName
-        name.setGivenName(canonical.getDisplayName() != null ? canonical.getDisplayName() : canonical.getUserName());
+    // // givenName from displayName
+    // name.setGivenName(canonical.getDisplayName() != null ?
+    // canonical.getDisplayName() : canonical.getUserName());
 
-        // familyName = same (since canonical has no last name)
-        name.setFamilyName(canonical.getDisplayName() != null ? canonical.getDisplayName() : canonical.getUserName());
+    // // familyName = same (since canonical has no last name)
+    // name.setFamilyName(canonical.getDisplayName() != null ?
+    // canonical.getDisplayName() : canonical.getUserName());
 
-        req.setName(name);
+    // req.setName(name);
 
-        // --- email mapping ---
-        ScimUserRequest.Email email = new ScimUserRequest.Email();
-        email.setPrimary(true);
+    // // --- email mapping ---
+    // ScimUserRequest.Email email = new ScimUserRequest.Email();
+    // email.setPrimary(true);
 
-        // canonical user has no email → generate fallback
-        String emailValue = canonical.getUserName() + "@example.com";
-        email.setValue(emailValue);
+    // // canonical user has no email → generate fallback
+    // String emailValue = canonical.getUserName() + "@example.com";
+    // email.setValue(emailValue);
 
-        req.setEmails(Collections.singletonList(email));
+    // req.setEmails(Collections.singletonList(email));
 
-        return req;
-    }
+    // return req;
+    // }
 
     // ----------------------------------
     // Canonical → Cymmetri
@@ -160,4 +162,53 @@ public class UserMapper {
 
         return user;
     }
+
+    // from cymmetri to wso2
+
+    public ScimUserRequest toScim(IncomingUser in) {
+        ScimUserRequest req = new ScimUserRequest();
+
+        req.setSchemas(List.of("urn:ietf:params:scim:schemas:core:2.0:User"));
+
+        // Username → priority order
+        String username = firstNonNull(
+                in.getPortal_username(),
+                in.getEmail(),
+                in.getCode());
+        req.setUserName(username);
+
+        // Password → your existing SCIM mapper uses fallback
+        req.setPassword("Temp123!"); // or drop if your existing mapper handles fallback
+
+        // --- NAME ---
+        ScimUserRequest.Name name = new ScimUserRequest.Name();
+        String display = firstNonNull(
+                in.getFull_name(),
+                in.getFirst_names(),
+                in.getPortal_username(),
+                username);
+        name.setGivenName(display);
+        name.setFamilyName(display);
+        req.setName(name);
+
+        // --- EMAIL ---
+        ScimUserRequest.Email email = new ScimUserRequest.Email();
+        email.setPrimary(true);
+        email.setValue(
+                firstNonNull(in.getEmail(), username + "@example.com"));
+        req.setEmails(Collections.singletonList(email));
+
+        return req;
+    }
+
+    private String firstNonNull(String... vals) {
+        if (vals == null)
+            return null;
+        for (String v : vals) {
+            if (v != null && !v.isBlank())
+                return v;
+        }
+        return null;
+    }
+
 }
