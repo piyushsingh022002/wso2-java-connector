@@ -64,14 +64,9 @@ public class ProvisioningController {
     // PULL users FROM WSO2
     // ------------------------------------------
     @GetMapping("/users/pull")
-    public Mono<Map<String, Object>> pullUsersFromWso2() {
+    public Mono<List<Map<String, Object>>> pullUsersFromWso2() {
         log.info("Pulling users from WSO2...");
-        return provisioningService.pullUsersFromWso2()
-                .map(users -> {
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("data", users); // Wrap the list under "data"
-                    return response;
-                });
+        return provisioningService.pullUsersFromWso2();
     }
 
     // ------------------------------------------
