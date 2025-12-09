@@ -2,6 +2,8 @@ package com.example.connector.service;
 
 import com.example.connector.config.Wso2Config;
 import com.example.connector.dto.CanonicalUser;
+import com.example.connector.dto.DeleteUserRequest;
+import com.example.connector.dto.DeleteUserResponse;
 import com.example.connector.dto.IncomingUser;
 import com.example.connector.dto.cymmetri.CymmetriUser;
 import com.example.connector.dto.scim.ScimUserRequest;
@@ -292,5 +294,60 @@ public class ProvisioningService {
                     userId, ex.getStatusCode(), ex.getResponseBodyAsString());
             throw ex;
         }
+    }
+
+    /**
+     * Reactive: Deletes a WSO2 user by username.
+     */
+    public Mono<DeleteUserResponse> deleteUserByUsername(String username, DeleteUserRequest request) {
+        // Build filter URI for GET
+        String filterUri = wso2Config.getScimUsersEndpoint() + "?filter=userName eq \"" + username + "\"";
+
+        // Build Basic Auth header using credentials from config
+        String basicAuth = "Basic " + java.util.Base64.getEncoder().encodeToString(
+            (wso2Config.getUsername() + ":" + wso2Config.getPassword()).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        );
+
+        return wso2Client.get()
+            .uri(filterUri)
+            .header(HttpHeaders.AUTHORIZATION, basicAuth)
+            .accept(MediaType.APPLICATION_JSON)
+            .retrieve()
+            .bodyToMono(Map.class)
+            .flatMap(userListResponse -> {
+                // Check if Resources exist and not empty
+                Object resourcesObj = userListResponse.get("Resources");
+                if (!(resourcesObj instanceof List) || ((List<?>) resourcesObj).isEmpty()) {
+                    log.warn("User not found in WSO2: {}", username);
+                    return Mono.just(new DeleteUserResponse("NOT_FOUND", "User not found"));
+                }
+                Map<?, ?> userObj = (Map<?, ?>) ((List<?>) resourcesObj).get(0);
+                String userId = (String) userObj.get("id");
+                if (userId == null) {
+                    log.error("User ID not found for username: {}", username);
+                    return Mono.just(new DeleteUserResponse("ERROR", "User ID not found"));
+                }
+                // DELETE user by userId
+                return wso2Client.delete()
+                    .uri(wso2Config.getScimUsersEndpoint() + "/" + userId)
+                    .header(HttpHeaders.AUTHORIZATION, basicAuth)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .map(resp -> {
+                        log.info("User deleted successfully: {} (userId={})", username, userId);
+                        return new DeleteUserResponse("SUCCESS", "User deleted successfully");
+                    });
+            })
+            .onErrorResume(ex -> {
+                if (ex instanceof org.springframework.web.reactive.function.client.WebClientResponseException webEx) {
+                    log.error("WSO2 DELETE failed for username={}, status={}, body={}", username, webEx.getStatusCode(), webEx.getResponseBodyAsString());
+                    if (webEx.getStatusCode().value() == 404) {
+                        return Mono.just(new DeleteUserResponse("NOT_FOUND", "User not found"));
+                    }
+                    return Mono.just(new DeleteUserResponse("ERROR", "WSO2 error: " + webEx.getMessage()));
+                }
+                log.error("Unexpected error deleting user {}: {}", username, ex.getMessage(), ex);
+                return Mono.just(new DeleteUserResponse("ERROR", "Unexpected error: " + ex.getMessage()));
+            });
     }
 }

@@ -1,8 +1,9 @@
 package com.example.connector.controller;
 
 import reactor.core.publisher.Flux;
-
 import com.example.connector.dto.CanonicalUser;
+import com.example.connector.dto.DeleteUserRequest;
+import com.example.connector.dto.DeleteUserResponse;
 import com.example.connector.dto.IncomingUser;
 import com.example.connector.dto.scim.ScimUserResponse;
 import com.example.connector.dto.scim.Wso2ScimUser;
@@ -10,6 +11,7 @@ import com.example.connector.mapper.UserMapper;
 import com.example.connector.service.ProvisioningService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -85,4 +87,20 @@ public class ProvisioningController {
         return provisioningService.pushIncomingToWso2(incoming);
     }
 
+    // ------------------------------------------
+    // DELETE WSO2 USER BY USERNAME (Reactive)
+    // ------------------------------------------
+    @DeleteMapping("/api/users/delete")
+    public Mono<ResponseEntity<DeleteUserResponse>> deleteUser(@RequestBody DeleteUserRequest request) {
+        String username = request.getCode();
+        log.info("Received delete request for username={}", username);
+        return provisioningService.deleteUserByUsername(username, request)
+                .map(response -> {
+                    return switch (response.getStatus()) {
+                        case "SUCCESS" -> ResponseEntity.ok(response);
+                        case "NOT_FOUND" -> ResponseEntity.status(404).body(response);
+                        default -> ResponseEntity.status(500).body(response);
+                    };
+                });
+    }
 }
