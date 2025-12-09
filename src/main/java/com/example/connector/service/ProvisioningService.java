@@ -305,49 +305,131 @@ public class ProvisioningService {
 
         // Build Basic Auth header using credentials from config
         String basicAuth = "Basic " + java.util.Base64.getEncoder().encodeToString(
-            (wso2Config.getUsername() + ":" + wso2Config.getPassword()).getBytes(java.nio.charset.StandardCharsets.UTF_8)
-        );
+                (wso2Config.getUsername() + ":" + wso2Config.getPassword())
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         return wso2Client.get()
-            .uri(filterUri)
-            .header(HttpHeaders.AUTHORIZATION, basicAuth)
-            .accept(MediaType.APPLICATION_JSON)
-            .retrieve()
-            .bodyToMono(Map.class)
-            .flatMap(userListResponse -> {
-                // Check if Resources exist and not empty
-                Object resourcesObj = userListResponse.get("Resources");
-                if (!(resourcesObj instanceof List) || ((List<?>) resourcesObj).isEmpty()) {
-                    log.warn("User not found in WSO2: {}", username);
-                    return Mono.just(new DeleteUserResponse("NOT_FOUND", "User not found"));
-                }
-                Map<?, ?> userObj = (Map<?, ?>) ((List<?>) resourcesObj).get(0);
-                String userId = (String) userObj.get("id");
-                if (userId == null) {
-                    log.error("User ID not found for username: {}", username);
-                    return Mono.just(new DeleteUserResponse("ERROR", "User ID not found"));
-                }
-                // DELETE user by userId
-                return wso2Client.delete()
-                    .uri(wso2Config.getScimUsersEndpoint() + "/" + userId)
-                    .header(HttpHeaders.AUTHORIZATION, basicAuth)
-                    .retrieve()
-                    .toBodilessEntity()
-                    .map(resp -> {
-                        log.info("User deleted successfully: {} (userId={})", username, userId);
-                        return new DeleteUserResponse("SUCCESS", "User deleted successfully");
-                    });
-            })
-            .onErrorResume(ex -> {
-                if (ex instanceof org.springframework.web.reactive.function.client.WebClientResponseException webEx) {
-                    log.error("WSO2 DELETE failed for username={}, status={}, body={}", username, webEx.getStatusCode(), webEx.getResponseBodyAsString());
-                    if (webEx.getStatusCode().value() == 404) {
+                .uri(filterUri)
+                .header(HttpHeaders.AUTHORIZATION, basicAuth)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .flatMap(userListResponse -> {
+                    // Check if Resources exist and not empty
+                    Object resourcesObj = userListResponse.get("Resources");
+                    if (!(resourcesObj instanceof List) || ((List<?>) resourcesObj).isEmpty()) {
+                        log.warn("User not found in WSO2: {}", username);
                         return Mono.just(new DeleteUserResponse("NOT_FOUND", "User not found"));
                     }
-                    return Mono.just(new DeleteUserResponse("ERROR", "WSO2 error: " + webEx.getMessage()));
-                }
-                log.error("Unexpected error deleting user {}: {}", username, ex.getMessage(), ex);
-                return Mono.just(new DeleteUserResponse("ERROR", "Unexpected error: " + ex.getMessage()));
-            });
+                    Map<?, ?> userObj = (Map<?, ?>) ((List<?>) resourcesObj).get(0);
+                    String userId = (String) userObj.get("id");
+                    if (userId == null) {
+                        log.error("User ID not found for username: {}", username);
+                        return Mono.just(new DeleteUserResponse("ERROR", "User ID not found"));
+                    }
+                    // DELETE user by userId
+                    return wso2Client.delete()
+                            .uri(wso2Config.getScimUsersEndpoint() + "/" + userId)
+                            .header(HttpHeaders.AUTHORIZATION, basicAuth)
+                            .retrieve()
+                            .toBodilessEntity()
+                            .map(resp -> {
+                                log.info("User deleted successfully: {} (userId={})", username, userId);
+                                return new DeleteUserResponse("SUCCESS", "User deleted successfully");
+                            });
+                })
+                .onErrorResume(ex -> {
+                    if (ex instanceof org.springframework.web.reactive.function.client.WebClientResponseException webEx) {
+                        log.error("WSO2 DELETE failed for username={}, status={}, body={}", username,
+                                webEx.getStatusCode(), webEx.getResponseBodyAsString());
+                        if (webEx.getStatusCode().value() == 404) {
+                            return Mono.just(new DeleteUserResponse("NOT_FOUND", "User not found"));
+                        }
+                        return Mono.just(new DeleteUserResponse("ERROR", "WSO2 error: " + webEx.getMessage()));
+                    }
+                    log.error("Unexpected error deleting user {}: {}", username, ex.getMessage(), ex);
+                    return Mono.just(new DeleteUserResponse("ERROR", "Unexpected error: " + ex.getMessage()));
+                });
     }
+
+    // update user in WSO2 or create if not exists
+    public Mono<ScimUserResponse> upsertIncomingToWso2(IncomingUser incoming) {
+
+        ScimUserRequest scimUser = userMapper.toScim(incoming);
+        // String username = scimUser.getUserName();
+        String username = incoming.getCode();
+        scimUser.setUserName(username);
+
+        String filterUri = "/scim2/Users?filter=userName eq \"" + username + "\"";
+
+        return wso2Client.get()
+                .uri(filterUri)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .flatMap(userListResponse -> {
+                    Object resourcesObj = userListResponse.get("Resources");
+
+                    boolean exists = (resourcesObj instanceof List) && !((List<?>) resourcesObj).isEmpty();
+
+                    return exists
+                            ? updateScimUser(username, scimUser)
+                            : pushIncomingToWso2(incoming);
+                })
+                .onErrorResume(ex -> {
+                    log.error("Error checking user existence for {}: {}", username, ex.getMessage());
+                    // If lookup fails, *fallback to Create*
+                    return pushIncomingToWso2(incoming);
+                });
+    }
+
+    // Update existing SCIM user using WSO2 internal ID
+    private Mono<ScimUserResponse> updateScimUser(String username, ScimUserRequest scimUser) {
+
+        log.info("Updating SCIM user (lookup by username): {}", username);
+
+        // Step 1 → Find user by username
+        String filterUri = "/scim2/Users?filter=userName eq \"" + username + "\"";
+
+        return wso2Client.get()
+                .uri(filterUri)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .flatMap(userListResponse -> {
+
+                    // Extract "Resources" array
+                    Object resourcesObj = userListResponse.get("Resources");
+                    if (!(resourcesObj instanceof List) || ((List<?>) resourcesObj).isEmpty()) {
+                        log.warn("User not found in WSO2 for update: {}", username);
+                        return Mono.error(new RuntimeException("User not found for update"));
+                    }
+
+                    // Extract internal SCIM ID
+                    Map<?, ?> userObj = (Map<?, ?>) ((List<?>) resourcesObj).get(0);
+                    String userId = (String) userObj.get("id");
+
+                    if (userId == null) {
+                        log.error("User ID missing in WSO2 for username: {}", username);
+                        return Mono.error(new RuntimeException("User ID not found"));
+                    }
+
+                    log.info("Updating SCIM user with internal ID: {} (username={})", userId, username);
+
+                    // Step 2 → Perform UPDATE with correct SCIM ID
+                    return wso2Client.put()
+                            .uri("/scim2/Users/" + userId)
+                            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                            .bodyValue(scimUser)
+                            .retrieve()
+                            .bodyToMono(ScimUserResponse.class)
+                            .doOnSuccess(resp -> log.info("User updated successfully in WSO2. username={}, id={}",
+                                    username, userId))
+                            .doOnError(err -> log.error("Error updating WSO2 user {} (id={}): {}", username, userId,
+                                    err.getMessage()));
+                })
+                .onErrorResume(ex -> {
+                    log.error("Unexpected error updating user {}: {}", username, ex.getMessage());
+                    return Mono.error(ex);
+                });
+    }
+
 }

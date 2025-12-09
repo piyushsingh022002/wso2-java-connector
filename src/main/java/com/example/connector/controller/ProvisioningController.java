@@ -103,4 +103,11 @@ public class ProvisioningController {
                     };
                 });
     }
+
+    // PUSH or UPDATE single user TO WSO2
+   @PostMapping("/users/upsert/single")
+   public Mono<ScimUserResponse> upsertSingleUser(@RequestBody IncomingUser incoming) {
+    return provisioningService.upsertIncomingToWso2(incoming);
+   }
+
 }
